@@ -2,7 +2,7 @@
 -- Debug: Press F9 to see console messages
 
 local success, err = pcall(function()
-    print("[D-DAY] Script loading...")
+    print("[TUPAISH] Script loading...")
 
     -- Services
     local Players = game:GetService("Players")
@@ -13,14 +13,14 @@ local success, err = pcall(function()
     local LP = Players.LocalPlayer
     local Camera = Workspace.CurrentCamera
 
-    print("[D-DAY] Services loaded")
+    print("[TUPAISH] Services loaded")
 
     -- Config
     local S = {
         Aimbot = {
             Enabled = false,
             FOV = 150,
-            Smooth = 0.08,
+            Smooth = 0.16,
             TeamCheck = true,
             VisCheck = true,
             AimPart = "Head"
@@ -52,7 +52,7 @@ local success, err = pcall(function()
     }
 
     if not Drawing then
-        warn("[D-DAY] Drawing API not found!")
+        warn("[TUPAISH] Drawing API not found!")
         return
     end
 
@@ -60,7 +60,7 @@ local success, err = pcall(function()
     local uiParent = CoreGui
     pcall(function() uiParent = gethui() end)
 
-    -- Create UI
+    -- Create UI - Original Style
     local SG = Instance.new("ScreenGui")
     SG.Name = "D"
     SG.ResetOnSpawn = false
@@ -288,6 +288,7 @@ local success, err = pcall(function()
     -- Script control
     local Running = true
     local MainConnection = nil
+    local DefaultWalkSpeed = 16
 
     -- ESP Objects (defined before UI so kill button can access them)
     local ESPObjects = {}
@@ -304,9 +305,8 @@ local success, err = pcall(function()
     MakeToggle("TeamCheck", S.Aimbot.TeamCheck, function(v) S.Aimbot.TeamCheck = v end, CT)
     MakeToggle("VisCheck", S.Aimbot.VisCheck, function(v) S.Aimbot.VisCheck = v end, CT)
     MakeSlider("FOV", 10, 500, S.Aimbot.FOV, function(v) S.Aimbot.FOV = v end, CT)
-    MakeSlider("Smooth", 0.01, 1, S.Aimbot.Smooth, function(v) S.Aimbot.Smooth = v end, CT)
+    MakeSlider("Smooth", 0.01, 1, 0.16, function(v) S.Aimbot.Smooth = v end, CT)
     MakeDropdown("Part", {"Head", "Torso", "HumanoidRootPart"}, 1, function(v) S.Aimbot.AimPart = v end, CT)
-    MakeToggle("TriggerBot", S.Misc.TriggerBot, function(v) S.Misc.TriggerBot = v end, CT)
     MakeToggle("NoRecoil", S.Misc.NoRecoil, function(v) S.Misc.NoRecoil = v end, CT)
 
     -- Kill Script button
@@ -363,7 +363,12 @@ local success, err = pcall(function()
             end
             ESPObjects[player] = nil
         end
-        print("[D-DAY] Script stopped completely")
+        -- Reset walkspeed when stopping script
+        pcall(function()
+            local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = 16 end
+        end)
+        print("[TUPAISH] Script stopped completely")
         return
     end)
     table.insert(Connections, killConn)
@@ -379,7 +384,15 @@ local success, err = pcall(function()
     MakeToggle("Skeleton", S.ESP.Skeleton, function(v) S.ESP.Skeleton = v end, CT)
 
     CT = TabContents[3]
-    MakeToggle("SpeedHack", S.Misc.SpeedHack, function(v) S.Misc.SpeedHack = v end, CT)
+    MakeToggle("SpeedHack", S.Misc.SpeedHack, function(v) 
+        S.Misc.SpeedHack = v 
+        if not v then
+            pcall(function()
+                local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+                if hum then hum.WalkSpeed = DefaultWalkSpeed end
+            end)
+        end
+    end, CT)
     MakeSlider("Speed", 1, 5, S.Movement.Speed, function(v) S.Movement.Speed = v end, CT)
     MakeToggle("Noclip", S.Misc.Noclip, function(v) S.Misc.Noclip = v end, CT)
 
@@ -431,12 +444,12 @@ local success, err = pcall(function()
                 aimbotToggle.BackgroundColor3 = S.Aimbot.Enabled and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
                 aimbotToggle.Text = S.Aimbot.Enabled and "ON" or "OFF"
             end
-            print("[D-DAY] Aimbot: " .. tostring(S.Aimbot.Enabled))
+            print("[TUPAISH] Aimbot: " .. tostring(S.Aimbot.Enabled))
         end
     end)
     table.insert(Connections, hotkeyConn)
 
-    print("[D-DAY] UI built")
+    print("[TUPAISH] UI built")
 
     -- ESP Functions
     local function WorldToScreen(pos)
@@ -816,8 +829,6 @@ local success, err = pcall(function()
     table.insert(Connections, playerRemovingConn)
 
     -- Main Loop
-    local lastTrigger = 0
-
     MainConnection = RunService.RenderStepped:Connect(function()
         if not Running then return end
 
@@ -853,27 +864,21 @@ local success, err = pcall(function()
                     if mousemoverel then mousemoverel(delta.X, delta.Y) end
                 end)
                 
-                -- TriggerBot (only fire if holding M2/ADS, target visible, and not behind walls)
-                if S.Misc.TriggerBot and IsVisible(aimTarget) and UserInput:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-                    local now = tick()
-                    if now - lastTrigger > 0.05 then
-                        lastTrigger = now
-                        pcall(function()
-                            if mouse1click then mouse1click() end
-                        end)
-                    end
-                end
             end
         end
         
-        -- SpeedHack (use WalkSpeed instead of Velocity to avoid anti-cheat)
+        -- SpeedHack (balanced speed to avoid anti-cheat)
         if S.Misc.SpeedHack then
-            local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                pcall(function()
-                    hum.WalkSpeed = 16 + (S.Movement.Speed * 8)
-                end)
-            end
+            pcall(function()
+                local char = LP.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health > 0 then
+                        local targetSpeed = DefaultWalkSpeed + (S.Movement.Speed * 4)
+                        hum.WalkSpeed = targetSpeed
+                    end
+                end
+            end)
         end
         
         -- Noclip
@@ -904,9 +909,27 @@ local success, err = pcall(function()
         table.insert(Connections, noRecoilConn)
     end
 
-    print("[D-DAY] Loaded successfully!")
+    -- Handle walkspeed on character respawn
+    local charAddedConn = LP.CharacterAdded:Connect(function(char)
+        wait(0.2)
+        pcall(function()
+            local hum = char:WaitForChild("Humanoid", 2)
+            if hum then
+                -- Capture default walkspeed on first spawn
+                if DefaultWalkSpeed == 16 and hum.WalkSpeed ~= 16 + (S.Movement.Speed * 4) then
+                    DefaultWalkSpeed = hum.WalkSpeed
+                end
+                if S.Misc.SpeedHack and hum.Health > 0 then
+                    hum.WalkSpeed = DefaultWalkSpeed + (S.Movement.Speed * 4)
+                end
+            end
+        end)
+    end)
+    table.insert(Connections, charAddedConn)
+
+    print("[TUPAISH] Loaded successfully!")
 end)
 
 if not success then
-    warn("[D-DAY] Error: " .. tostring(err))
+    warn("[TUPAISH] Error: " .. tostring(err))
 end
